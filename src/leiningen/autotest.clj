@@ -2,19 +2,20 @@
   (:use
     watchtower.core)
   (:require
-    [clojure.string :as str]
-    [clj-growl.core :as growl]
-    [leiningen.core :as lc]
-    [leiningen.test :as lt])
+    [clojure.java.shell :as shell]
+    [clojure.string     :as str]
+    [clj-growl.core     :as growl]
+    [leiningen.core     :as lc]
+    [leiningen.test     :as lt])
   (:import [java.io StringWriter]))
 
 (def ^:dynamic *growl-password* "")
 
-(def growl
+(def linux? (= "Linux" (System/getProperty "os.name")))
+
+(def growl-conn
   (growl/make-growler
-    *growl-password*
-    "AutoTestNotify"
-    ["Success" true, "Failure" true]))
+    *growl-password* "AutoTestNotify" ["Result" true]))
 
 (defn pickup-errors [s]
   (filter #(or (zero? (.indexOf % "FAIL"))
@@ -22,17 +23,23 @@
           (str/split s #"\n\n")))
 
 (defn string-writer->error-message [str-writer]
-  (str/join "\n\n"
+  (str/join "\n----\n"
     (map #(let [ss (str/split % #"\n")]
             (str/join "\n" (take 3 ss)))
          (pickup-errors (str str-writer)))))
 
+;; notifier
+(defn notify-send [title body] (shell/sh "notify-send" title body))
+(defn growl [title body] (growl-conn "Result" title body))
+
 (defn run-test [project & files]
   (let [sw (StringWriter.)]
     (binding [*out* sw]
-      (if (zero? (lt/test project))
-        (growl "Success" (:name project) "OK")
-        (growl "Failure" (:name project) (string-writer->error-message sw))))))
+      (let [result-code (lt/test project)
+            message     (string-writer->error-message sw)
+            notify-fn   (if linux? notify-send growl)]
+        (notify-fn (:name project)
+                   (if (zero? result-code) "OK" message))))))
 
 (defn autotest [project & args]
   (binding [lt/*exit-after-tests* false
