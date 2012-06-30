@@ -34,13 +34,16 @@
 (defn growl [title body] (growl-conn "Result" title body))
 
 (defn run-test [project & files]
-  (let [sw (StringWriter.)]
-    (binding [*out* sw]
+  (let [out-sw    (StringWriter.)
+        err-sw    (StringWriter.)
+        proj-name (:name project)
+        notify-fn (if linux? notify-send growl)]
+    (notify-fn proj-name "Start testing")
+    (binding [*out* out-sw, *err* err-sw]
       (let [result-code (lt/test project)
-            message     (string-writer->error-message sw)
-            notify-fn   (if linux? notify-send growl)]
-        (notify-fn (:name project)
-                   (if (zero? result-code) "OK" message))))))
+            message     (string-writer->error-message out-sw)
+            message     (if (str/blank? message) "NG" message)]
+        (notify-fn proj-name (if (zero? result-code) "OK" message))))))
 
 (defn autotest [project & args]
   (binding [lt/*exit-after-tests* false
