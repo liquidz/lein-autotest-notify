@@ -19,7 +19,8 @@
 
 (defn pickup-errors [s]
   (filter #(or (zero? (.indexOf % "FAIL"))
-               (zero? (.indexOf % "ERROR")))
+               (zero? (.indexOf % "ERROR"))
+               (zero? (.indexOf % "Exception")))
           (str/split s #"\n\n")))
 
 (defn string-writer->error-message [str-writer]
